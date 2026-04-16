@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>海南离岛免税销售数据看板</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8fafc;
+    --bg-card: #ffffff;
+    --bg-card-hover: #f1f5f9;
+    --border: #e2e8f0;
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
+    --text-muted: #94a3b8;
+    --accent: #3b82f6;
+    --accent-light: #60a5fa;
+    --green: #10b981;
+    --green-bg: rgba(16,185,129,0.08);
+    --red: #ef4444;
+    --red-bg: rgba(239,68,68,0.08);
+    --orange: #f59e0b;
+    --orange-bg: rgba(245,158,11,0.08);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    background: #f8fafc;
+    color: var(--text-primary);
+    min-height: 100vh;
+    padding: 24px;
+  }
+
+  .container { max-width: 1200px; margin: 0 auto; }
+
+  h1 {
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--text-primary);
+  }
+
+  .subtitle {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+  }
+
+  .subtitle a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  /* KPI Cards */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .kpi-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+
+  .kpi-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+  }
+
+  .kpi-value {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.5px;
+  }
+
+  .kpi-unit {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--text-secondary);
+    margin-left: 2px;
+  }
+
+  .kpi-change {
+    font-size: 12px;
+    margin-top: 6px;
+    font-weight: 500;
+  }
+
+  .kpi-change.up { color: var(--green); }
+  .kpi-change.down { color: var(--red); }
+
+  /* Chart Section */
+  .chart-section {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+
+  .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .chart-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .tab-group {
+    display: flex;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    padding: 3px;
+    gap: 2px;
+  }
+
+  .tab-btn {
+    padding: 6px 14px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 500;
+  }
+
+  .tab-btn:hover { color: var(--text-primary); }
+  .tab-btn.active {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .chart-wrap {
+    position: relative;
+    height: 320px;
+  }
+
+  /* Data Table */
+  .table-section {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+
+  .table-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .table-title {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .date-range {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .date-range input {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    width: 110px;
+  }
+
+  .date-range button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 5px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .date-range button:hover { background: var(--accent-light); }
+
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .data-table th {
+    text-align: left;
+    padding: 10px 12px;
+    color: var(--text-secondary);
+    font-weight: 500;
+    font-size: 12px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  .data-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(30,45,74,0.5);
+    white-space: nowrap;
+  }
+
+  .data-table tr:hover td { background: var(--bg-card-hover); }
+
+  .data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .data-table .yoy-up { color: var(--green); }
+  .data-table .yoy-down { color: var(--red); }
+
+  .footer {
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-muted);
+    padding: 16px 0;
+  }
+
+  .loading {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-secondary);
+    font-size: 14px;
+  }
+
+  @media (max-width: 768px) {
+    body { padding: 12px; }
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .kpi-value { font-size: 20px; }
+    .chart-wrap { height: 250px; }
+    .data-table { font-size: 11px; }
+    .data-table th, .data-table td { padding: 6px 8px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>🏖️ 海南离岛免税销售数据看板</h1>
+  <p class="subtitle">数据来源：<a href="http://haikou.customs.gov.cn/haikou_customs/605737/fdzdgknr82/605745/58527f05-1.html" target="_blank">海口海关</a> · 自动更新 · 单位：金额(万元) / 人次(万人次) / 件数(万件) / 人均(元/人次)</p>
+
+  <div class="kpi-grid" id="kpiGrid"></div>
+
+  <div class="chart-section">
+    <div class="chart-header">
+      <span class="chart-title">月度数据走势</span>
+      <div class="tab-group" id="chart1Tabs"></div>
+    </div>
+    <div class="chart-wrap"><canvas id="chart1"></canvas></div>
+  </div>
+
+  <div class="chart-section">
+    <div class="chart-header">
+      <span class="chart-title">年度累计对比 (同年 vs 上年)</span>
+      <div class="tab-group" id="chart2Tabs"></div>
+    </div>
+    <div class="chart-wrap"><canvas id="chart2"></canvas></div>
+  </div>
+
+  <div class="table-section">
+    <div class="table-header">
+      <span class="table-title">📋 明细数据</span>
+      <div class="date-range">
+        <label>起始：</label>
+        <input type="month" id="startDate" />
+        <label>结束：</label>
+        <input type="month" id="endDate" />
+        <button onclick="filterTable()">查询</button>
+        <button onclick="resetTable()" style="background:var(--bg-secondary);color:var(--text-secondary);border:1px solid var(--border)">重置</button>
+      </div>
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>月份</th>
+          <th class="num">购物金额</th>
+          <th class="num">同比%</th>
+          <th class="num">实际人次</th>
+          <th class="num">同比%</th>
+          <th class="num">购物件数</th>
+          <th class="num">同比%</th>
+          <th class="num">人均消费</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+  <div class="footer">数据自动从海口海关官网抓取 · 最后更新：<span id="lastUpdate">-</span></div>
+</div>
+
+<script>
+// ── Config ──
+const METRICS = [
+  { key: 'amount',       label: '购物金额', unit: '万元', fmt: v => fmtNum(v) },
+  { key: 'visitors',     label: '实际人次', unit: '万人次', fmt: v => v.toFixed(2) },
+  { key: 'items',        label: '购物件数', unit: '万件', fmt: v => fmtNum(v) },
+  { key: 'per_capita',   label: '人均消费', unit: '元/人次', fmt: v => v.toFixed(0) },
+];
+
+const CUM_METRICS = [
+  { key: 'amount_cumulative',     label: '购物金额', unit: '万元', fmt: v => fmtNum(v) },
+  { key: 'visitors_cumulative',   label: '实际人次', unit: '万人次', fmt: v => v.toFixed(2) },
+  { key: 'items_cumulative',      label: '购物件数', unit: '万件', fmt: v => fmtNum(v) },
+  { key: 'per_capita_cumulative', label: '人均消费', unit: '元/人次', fmt: v => v.toFixed(0) },
+];
+
+let allData = [];
+let chart1, chart2;
+let currentTab1 = 0, currentTab2 = 0;
+
+function fmtNum(v) {
+  if (v >= 10000) return (v / 10000).toFixed(2) + '亿';
+  if (v >= 1000) return (v / 1000).toFixed(1) + '千';
+  return v.toFixed(0);
+}
+
+function fmtNumPlain(v) {
+  if (v == null) return '-';
+  return v.toLocaleString('zh-CN', { maximumFractionDigits: 2 });
+}
+
+function fmtYoy(v) {
+  if (v == null) return '-';
+  const sign = v >= 0 ? '+' : '';
+  return sign + v.toFixed(2) + '%';
+}
+
+function yoyClass(v) {
+  if (v == null) return '';
+  return v >= 0 ? 'yoy-up' : 'yoy-down';
+}
+
+function monthLabel(m) {
+  // "2025-01" -> "2025年1月"
+  const [y, mo] = m.split('-');
+  return `${y}年${parseInt(mo)}月`;
+}
+
+function monthShort(m) {
+  const [y, mo] = m.split('-');
+  return `${y.slice(2)}/${parseInt(mo)}`;
+}
+
+// ── Load Data ──
+async function loadData() {
+  try {
+    const resp = await fetch('data.json?t=' + Date.now());
+    allData = await resp.json();
+    allData.sort((a, b) => a.month.localeCompare(b.month));
+  } catch (e) {
+    document.getElementById('kpiGrid').innerHTML = '<div class="loading">无法加载 data.json，请确保文件存在</div>';
+    return;
+  }
+
+  if (!allData.length) {
+    document.getElementById('kpiGrid').innerHTML = '<div class="loading">暂无数据</div>';
+    return;
+  }
+
+  renderKPI();
+  renderChart1(currentTab1);
+  renderChart2(currentTab2);
+  renderTable(allData.slice(-24));
+  initDateRange();
+
+  document.getElementById('lastUpdate').textContent = new Date().toLocaleString('zh-CN');
+}
+
+// ── KPI Cards ──
+function renderKPI() {
+  const latest = allData[allData.length - 1];
+  const prev = allData.length >= 2 ? allData[allData.length - 2] : null;
+
+  const items = [
+    { label: `${monthLabel(latest.month)} 购物金额`, value: latest.amount, unit: '万元', yoy: latest.amount_yoy,
+      display: latest.amount >= 10000 ? (latest.amount / 10000).toFixed(2) : fmtNumPlain(latest.amount),
+      displayUnit: latest.amount >= 10000 ? '亿元' : '万元' },
+    { label: `${monthLabel(latest.month)} 实际人次`, value: latest.visitors, unit: '万人次', yoy: latest.visitors_yoy,
+      display: latest.visitors.toFixed(2), displayUnit: '万人次' },
+    { label: `${monthLabel(latest.month)} 购物件数`, value: latest.items, unit: '万件', yoy: latest.items_yoy,
+      display: latest.items >= 10000 ? (latest.items / 10000).toFixed(2) : fmtNumPlain(latest.items),
+      displayUnit: latest.items >= 10000 ? '亿件' : '万件' },
+    { label: `${monthLabel(latest.month)} 人均消费`, value: latest.per_capita, unit: '元', yoy: null,
+      display: latest.per_capita.toFixed(0), displayUnit: '元/人次' },
+  ];
+
+  const grid = document.getElementById('kpiGrid');
+  grid.innerHTML = items.map(item => {
+    const yoyHtml = item.yoy != null
+      ? `<div class="kpi-change ${item.yoy >= 0 ? 'up' : 'down'}">同比 ${fmtYoy(item.yoy)}</div>`
+      : '';
+    return `
+      <div class="kpi-card">
+        <div class="kpi-label">${item.label}</div>
+        <div class="kpi-value">${item.display}<span class="kpi-unit">${item.displayUnit}</span></div>
+        ${yoyHtml}
+      </div>
+    `;
+  }).join('');
+}
+
+// ── Chart 1: Monthly Trend ──
+function renderChart1(tabIdx) {
+  currentTab1 = tabIdx;
+  const metric = METRICS[tabIdx];
+
+  // Show last 24 months
+  const data = allData.slice(-24);
+  const labels = data.map(d => monthShort(d.month));
+  const values = data.map(d => d[metric.key]);
+
+  const tabGroup = document.getElementById('chart1Tabs');
+  tabGroup.innerHTML = METRICS.map((m, i) =>
+    `<button class="tab-btn ${i === tabIdx ? 'active' : ''}" onclick="renderChart1(${i})">${m.label}</button>`
+  ).join('');
+
+  if (chart1) chart1.destroy();
+
+  const ctx = document.getElementById('chart1').getContext('2d');
+  const gradient = ctx.createLinearGradient(0, 0, 0, 320);
+  gradient.addColorStop(0, 'rgba(59,130,246,0.25)');
+  gradient.addColorStop(1, 'rgba(59,130,246,0.01)');
+
+  chart1 = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: metric.label,
+        data: values,
+        borderColor: '#3b82f6',
+        backgroundColor: gradient,
+        borderWidth: 2,
+        fill: true,
+        tension: 0.3,
+        pointRadius: 3,
+        pointHoverRadius: 6,
+        pointBackgroundColor: '#3b82f6',
+        pointBorderColor: '#ffffff',
+        pointBorderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1e293b',
+          titleColor: '#ffffff',
+          bodyColor: '#ffffff',
+          borderColor: '#2a3d5f',
+          borderWidth: 1,
+          padding: 12,
+          callbacks: {
+            title: (items) => {
+              const idx = items[0].dataIndex;
+              return monthLabel(data[idx].month);
+            },
+            label: (item) => `${metric.label}: ${metric.fmt(item.raw)} ${metric.unit}`,
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(226,232,240,0.8)' },
+          ticks: { color: '#94a3b8', font: { size: 11 } },
+        },
+        y: {
+          grid: { color: 'rgba(226,232,240,0.8)' },
+          ticks: {
+            color: '#94a3b8',
+            font: { size: 11 },
+            callback: v => metric.fmt(v),
+          }
+        }
+      }
+    }
+  });
+}
+
+// ── Chart 2: Year-over-Year Cumulative Comparison ──
+function renderChart2(tabIdx) {
+  currentTab2 = tabIdx;
+  const metric = CUM_METRICS[tabIdx];
+
+  // Find the latest full year and the current year
+  const years = [...new Set(allData.map(d => d.month.split('-')[0]))].sort();
+  if (years.length < 2) return;
+
+  const curYear = years[years.length - 1];
+  const prevYear = years[years.length - 2];
+
+  const curData = allData.filter(d => d.month.startsWith(curYear));
+  const prevData = allData.filter(d => d.month.startsWith(prevYear));
+
+  // Months 1-12
+  const months = [];
+  for (let i = 1; i <= 12; i++) months.push(i + '月');
+
+  const curValues = Array(12).fill(null);
+  const prevValues = Array(12).fill(null);
+
+  curData.forEach(d => {
+    const mo = parseInt(d.month.split('-')[1]) - 1;
+    curValues[mo] = d[metric.key];
+  });
+  prevData.forEach(d => {
+    const mo = parseInt(d.month.split('-')[1]) - 1;
+    prevValues[mo] = d[metric.key];
+  });
+
+  // Truncate to last month with data
+  let lastIdx = 0;
+  for (let i = 11; i >= 0; i--) {
+    if (curValues[i] != null || prevValues[i] != null) { lastIdx = i; break; }
+  }
+
+  const tabGroup = document.getElementById('chart2Tabs');
+  tabGroup.innerHTML = CUM_METRICS.map((m, i) =>
+    `<button class="tab-btn ${i === tabIdx ? 'active' : ''}" onclick="renderChart2(${i})">${m.label}</button>`
+  ).join('');
+
+  if (chart2) chart2.destroy();
+
+  const ctx = document.getElementById('chart2').getContext('2d');
+
+  chart2 = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: months.slice(0, lastIdx + 1),
+      datasets: [
+        {
+          label: `${curYear} 累计`,
+          data: curValues.slice(0, lastIdx + 1),
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59,130,246,0.1)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.3,
+          pointRadius: 3,
+          pointHoverRadius: 6,
+          pointBackgroundColor: '#3b82f6',
+          pointBorderColor: '#ffffff',
+          pointBorderWidth: 2,
+          spanGaps: false,
+        },
+        {
+          label: `${prevYear} 累计`,
+          data: prevValues.slice(0, lastIdx + 1),
+          borderColor: '#64748b',
+          backgroundColor: 'rgba(100,116,139,0.08)',
+          borderWidth: 2,
+          borderDash: [5, 5],
+          fill: true,
+          tension: 0.3,
+          pointRadius: 3,
+          pointHoverRadius: 6,
+          pointBackgroundColor: '#64748b',
+          pointBorderColor: '#ffffff',
+          pointBorderWidth: 2,
+          spanGaps: false,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          labels: { color: '#64748b', font: { size: 12 }, padding: 16, usePointStyle: true, pointStyle: 'circle' }
+        },
+        tooltip: {
+          backgroundColor: '#1e293b',
+          titleColor: '#ffffff',
+          bodyColor: '#ffffff',
+          borderColor: '#2a3d5f',
+          borderWidth: 1,
+          padding: 12,
+          callbacks: {
+            label: (item) => {
+              if (item.raw == null) return item.dataset.label + ': 暂无数据';
+              return `${item.dataset.label}: ${metric.fmt(item.raw)} ${metric.unit}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(226,232,240,0.8)' },
+          ticks: { color: '#94a3b8', font: { size: 11 } },
+        },
+        y: {
+          grid: { color: 'rgba(226,232,240,0.8)' },
+          ticks: {
+            color: '#94a3b8',
+            font: { size: 11 },
+            callback: v => metric.fmt(v),
+          }
+        }
+      }
+    }
+  });
+}
+
+// ── Data Table ──
+function renderTable(data) {
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = data.map(d => `
+    <tr>
+      <td>${monthLabel(d.month)}</td>
+      <td class="num">${fmtNumPlain(d.amount)}</td>
+      <td class="num ${yoyClass(d.amount_yoy)}">${fmtYoy(d.amount_yoy)}</td>
+      <td class="num">${d.visitors != null ? d.visitors.toFixed(2) : '-'}</td>
+      <td class="num ${yoyClass(d.visitors_yoy)}">${fmtYoy(d.visitors_yoy)}</td>
+      <td class="num">${d.items != null ? d.items.toFixed(2) : '-'}</td>
+      <td class="num ${yoyClass(d.items_yoy)}">${fmtYoy(d.items_yoy)}</td>
+      <td class="num">${d.per_capita != null ? d.per_capita.toFixed(0) : '-'}</td>
+    </tr>
+  `).join('');
+}
+
+function initDateRange() {
+  if (allData.length === 0) return;
+  const startInput = document.getElementById('startDate');
+  const endInput = document.getElementById('endDate');
+  startInput.value = allData[0].month;
+  endInput.value = allData[allData.length - 1].month;
+}
+
+function filterTable() {
+  const start = document.getElementById('startDate').value;
+  const end = document.getElementById('endDate').value;
+  if (!start || !end) return;
+  const filtered = allData.filter(d => d.month >= start && d.month <= end);
+  renderTable(filtered);
+}
+
+function resetTable() {
+  initDateRange();
+  renderTable(allData.slice(-24));
+}
+
+// ── Init ──
+loadData();
+</script>
+</body>
+</html>

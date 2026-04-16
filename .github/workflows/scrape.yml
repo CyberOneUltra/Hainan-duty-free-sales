@@ -1,0 +1,82 @@
+name: Scrape Duty-Free Data
+
+on:
+  # 每月17-21日，UTC 1/2/12/13 点触发（海关数据发布时间不确定，多窗口重试）
+  schedule:
+    # 17日
+    - cron: '0 1 17 * *'
+    - cron: '0 2 17 * *'
+    - cron: '0 12 17 * *'
+    - cron: '0 13 17 * *'
+    # 18日
+    - cron: '0 1 18 * *'
+    - cron: '0 2 18 * *'
+    - cron: '0 12 18 * *'
+    - cron: '0 13 18 * *'
+    # 19日
+    - cron: '0 1 19 * *'
+    - cron: '0 2 19 * *'
+    - cron: '0 12 19 * *'
+    - cron: '0 13 19 * *'
+    # 20日
+    - cron: '0 1 20 * *'
+    - cron: '0 2 20 * *'
+    - cron: '0 12 20 * *'
+    - cron: '0 13 20 * *'
+    # 21日
+    - cron: '0 1 21 * *'
+    - cron: '0 2 21 * *'
+    - cron: '0 12 21 * *'
+    - cron: '0 13 21 * *'
+  # 支持手动触发
+  workflow_dispatch:
+    inputs:
+      month:
+        description: '指定月份 (如 2026-02)，留空则抓取所有缺失月份'
+        required: false
+        type: string
+      force:
+        description: '强制重新抓取'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run scraper
+        run: |
+          if [ -n "${{ github.event.inputs.month }}" ]; then
+            python3 scrape.py --month "${{ github.event.inputs.month }}"
+          elif [ "${{ github.event.inputs.force }}" = "true" ]; then
+            python3 scrape.py --force
+          else
+            python3 scrape.py
+          fi
+
+      - name: Commit & Push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data.json data/
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "data: auto-update $(date +'%Y-%m-%d %H:%M UTC')"
+            git push
+          fi
