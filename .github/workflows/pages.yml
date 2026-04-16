@@ -6,6 +6,8 @@ on:
     paths:
       - 'dashboard.html'
       - 'data.json'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
 
 permissions:
   pages: write
