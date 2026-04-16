@@ -427,53 +427,78 @@ function renderKPI() {
   }).join('');
 }
 
-// ── Chart 1: Monthly Trend ──
+// ── Year color palette ──
+const YEAR_COLORS = [
+  { border: '#3b82f6', bg: 'rgba(59,130,246,0.12)' },   // blue
+  { border: '#ef4444', bg: 'rgba(239,68,68,0.08)' },     // red
+  { border: '#10b981', bg: 'rgba(16,185,129,0.08)' },    // green
+  { border: '#f59e0b', bg: 'rgba(245,158,11,0.08)' },    // orange
+  { border: '#8b5cf6', bg: 'rgba(139,92,246,0.08)' },    // purple
+  { border: '#ec4899', bg: 'rgba(236,72,153,0.08)' },    // pink
+];
+const MONTH_LABELS = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+
+// ── Chart 1: Monthly Trend (multi-year overlay) ──
 function renderChart1(tabIdx) {
   currentTab1 = tabIdx;
   const metric = METRICS[tabIdx];
-
-  // Show last 24 months
-  const data = allData.slice(-24);
-  const labels = data.map(d => monthShort(d.month));
-  const values = data.map(d => d[metric.key]);
 
   const tabGroup = document.getElementById('chart1Tabs');
   tabGroup.innerHTML = METRICS.map((m, i) =>
     `<button class="tab-btn ${i === tabIdx ? 'active' : ''}" onclick="renderChart1(${i})">${m.label}</button>`
   ).join('');
 
+  // Group data by year
+  const years = [...new Set(allData.map(d => d.month.split('-')[0]))].sort();
+
+  // Build datasets: one line per year
+  const datasets = years.map((year, yi) => {
+    const color = YEAR_COLORS[yi % YEAR_COLORS.length];
+    const yearData = allData.filter(d => d.month.startsWith(year));
+    // Map to 12 months, fill null for missing
+    const values = Array(12).fill(null);
+    yearData.forEach(d => {
+      const mo = parseInt(d.month.split('-')[1]) - 1;
+      if (mo >= 0 && mo < 12) values[mo] = d[metric.key];
+    });
+    // Style: latest year is solid+thick, older years are dashed+thinner
+    const isLatest = (yi === years.length - 1);
+    return {
+      label: year + '年',
+      data: values,
+      borderColor: color.border,
+      backgroundColor: color.bg,
+      borderWidth: isLatest ? 2.5 : 1.8,
+      borderDash: isLatest ? [] : [6, 4],
+      fill: false,
+      tension: 0.3,
+      pointRadius: isLatest ? 4 : 2,
+      pointHoverRadius: 6,
+      pointBackgroundColor: color.border,
+      pointBorderColor: '#ffffff',
+      pointBorderWidth: 2,
+      spanGaps: false,
+    };
+  });
+
   if (chart1) chart1.destroy();
 
   const ctx = document.getElementById('chart1').getContext('2d');
-  const gradient = ctx.createLinearGradient(0, 0, 0, 320);
-  gradient.addColorStop(0, 'rgba(59,130,246,0.25)');
-  gradient.addColorStop(1, 'rgba(59,130,246,0.01)');
 
   chart1 = new Chart(ctx, {
     type: 'line',
     data: {
-      labels,
-      datasets: [{
-        label: metric.label,
-        data: values,
-        borderColor: '#3b82f6',
-        backgroundColor: gradient,
-        borderWidth: 2,
-        fill: true,
-        tension: 0.3,
-        pointRadius: 3,
-        pointHoverRadius: 6,
-        pointBackgroundColor: '#3b82f6',
-        pointBorderColor: '#ffffff',
-        pointBorderWidth: 2,
-      }]
+      labels: MONTH_LABELS,
+      datasets,
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { display: false },
+        legend: {
+          labels: { color: '#64748b', font: { size: 12 }, padding: 16, usePointStyle: true, pointStyle: 'circle' }
+        },
         tooltip: {
           backgroundColor: '#1e293b',
           titleColor: '#ffffff',
@@ -482,18 +507,18 @@ function renderChart1(tabIdx) {
           borderWidth: 1,
           padding: 12,
           callbacks: {
-            title: (items) => {
-              const idx = items[0].dataIndex;
-              return monthLabel(data[idx].month);
+            title: (items) => items[0]?.label || '',
+            label: (item) => {
+              if (item.raw == null) return item.dataset.label + ': 暂无数据';
+              return `${item.dataset.label}: ${metric.fmt(item.raw)} ${metric.unit}`;
             },
-            label: (item) => `${metric.label}: ${metric.fmt(item.raw)} ${metric.unit}`,
           }
         }
       },
       scales: {
         x: {
           grid: { color: 'rgba(226,232,240,0.8)' },
-          ticks: { color: '#94a3b8', font: { size: 11 } },
+          ticks: { color: '#94a3b8', font: { size: 12 } },
         },
         y: {
           grid: { color: 'rgba(226,232,240,0.8)' },
