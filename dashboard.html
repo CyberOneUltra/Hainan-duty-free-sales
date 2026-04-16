@@ -236,6 +236,25 @@
   .data-table .yoy-up { color: var(--green); }
   .data-table .yoy-down { color: var(--red); }
 
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 24px;
+  }
+  .header-left h1 {
+    margin-bottom: 6px;
+  }
+  .header-right {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-align: right;
+    white-space: nowrap;
+    padding-top: 4px;
+  }
+  .header-right .update-label { color: var(--text-muted); }
+  .header-right .update-time { color: var(--text-primary); font-weight: 500; }
+
   .footer {
     text-align: center;
     font-size: 11px;
@@ -263,8 +282,16 @@
 <body>
 
 <div class="container">
-  <h1>🏖️ 海南离岛免税销售数据看板</h1>
-  <p class="subtitle">数据来源：<a href="http://haikou.customs.gov.cn/haikou_customs/605737/fdzdgknr82/605745/58527f05-1.html" target="_blank">海口海关</a> · 自动更新 · 单位：金额(万元) / 人次(万人次) / 件数(万件) / 人均(元/人次)</p>
+  <div class="header">
+    <div class="header-left">
+      <h1>🏖️ 海南离岛免税销售数据看板</h1>
+      <p class="subtitle">数据来源：<a href="http://haikou.customs.gov.cn/haikou_customs/605737/fdzdgknr82/605745/58527f05-1.html" target="_blank">海口海关</a> · 自动更新 · 单位：金额(万元) / 人次(万人次) / 件数(万件) / 人均(元/人次)</p>
+    </div>
+    <div class="header-right">
+      <div class="update-label">数据更新时间</div>
+      <div class="update-time" id="lastUpdate">-</div>
+    </div>
+  </div>
 
   <div class="kpi-grid" id="kpiGrid"></div>
 
@@ -313,7 +340,7 @@
     </table>
   </div>
 
-  <div class="footer">数据自动从海口海关官网抓取 · 最后更新：<span id="lastUpdate">-</span></div>
+  <div class="footer">数据自动从海口海关官网抓取</div>
 </div>
 
 <script>
