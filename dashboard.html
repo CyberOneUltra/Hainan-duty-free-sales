@@ -461,18 +461,15 @@ function renderChart1(tabIdx) {
       const mo = parseInt(d.month.split('-')[1]) - 1;
       if (mo >= 0 && mo < 12) values[mo] = d[metric.key];
     });
-    // Style: latest year is solid+thick, older years are dashed+thinner
-    const isLatest = (yi === years.length - 1);
     return {
       label: year + '年',
       data: values,
       borderColor: color.border,
       backgroundColor: color.bg,
-      borderWidth: isLatest ? 2.5 : 1.8,
-      borderDash: isLatest ? [] : [6, 4],
+      borderWidth: 2,
       fill: false,
       tension: 0.3,
-      pointRadius: isLatest ? 4 : 2,
+      pointRadius: 3,
       pointHoverRadius: 6,
       pointBackgroundColor: color.border,
       pointBorderColor: '#ffffff',
