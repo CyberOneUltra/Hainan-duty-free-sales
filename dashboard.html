@@ -554,11 +554,22 @@ function renderChart2(tabIdx) {
 
   curData.forEach(d => {
     const mo = parseInt(d.month.split('-')[1]) - 1;
-    curValues[mo] = d[metric.key];
+    // 累计值为空时回退到月度值
+    let v = d[metric.key];
+    if (v == null) {
+      const monthlyKey = metric.key.replace('_cumulative', '');
+      v = d[monthlyKey];
+    }
+    curValues[mo] = v;
   });
   prevData.forEach(d => {
     const mo = parseInt(d.month.split('-')[1]) - 1;
-    prevValues[mo] = d[metric.key];
+    let v = d[metric.key];
+    if (v == null) {
+      const monthlyKey = metric.key.replace('_cumulative', '');
+      v = d[monthlyKey];
+    }
+    prevValues[mo] = v;
   });
 
   // Truncate to last month with data
