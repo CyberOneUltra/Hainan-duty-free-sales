@@ -334,6 +334,7 @@
           <th class="num">购物件数</th>
           <th class="num">同比%</th>
           <th class="num">人均消费</th>
+          <th class="num">同比%</th>
         </tr>
       </thead>
       <tbody id="tableBody"></tbody>
@@ -383,6 +384,12 @@ function fmtYoy(v) {
 function yoyClass(v) {
   if (v == null) return '';
   return v >= 0 ? 'yoy-up' : 'yoy-down';
+}
+
+function perCapitaYoy(d) {
+  const [y, m] = d.month.split('-');
+  const prev = allData.find(p => p.month === (parseInt(y) - 1) + '-' + m);
+  return (prev && prev.per_capita) ? ((d.per_capita - prev.per_capita) / prev.per_capita * 100) : null;
 }
 
 function monthLabel(m) {
@@ -435,7 +442,8 @@ function renderKPI() {
     { label: `${monthLabel(latest.month)} 购物件数`, value: latest.items, unit: '万件', yoy: latest.items_yoy,
       display: latest.items >= 10000 ? (latest.items / 10000).toFixed(2) : fmtNumPlain(latest.items),
       displayUnit: latest.items >= 10000 ? '亿件' : '万件' },
-    { label: `${monthLabel(latest.month)} 人均消费`, value: latest.per_capita, unit: '元', yoy: null,
+    { label: `${monthLabel(latest.month)} 人均消费`, value: latest.per_capita, unit: '元',
+      yoy: perCapitaYoy(latest),
       display: latest.per_capita.toFixed(0), displayUnit: '元/人次' },
   ];
 
@@ -706,6 +714,7 @@ function renderTable(data) {
       <td class="num">${d.items != null ? d.items.toFixed(2) : '-'}</td>
       <td class="num ${yoyClass(d.items_yoy)}">${fmtYoy(d.items_yoy)}</td>
       <td class="num">${d.per_capita != null ? d.per_capita.toFixed(0) : '-'}</td>
+      <td class="num ${yoyClass(perCapitaYoy(d))}">${fmtYoy(perCapitaYoy(d))}</td>
     </tr>
   `).join('');
 }
