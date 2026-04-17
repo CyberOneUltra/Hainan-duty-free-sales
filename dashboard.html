@@ -407,7 +407,19 @@ function monthShort(m) {
 async function loadData() {
   try {
     const resp = await fetch('data.json?t=' + Date.now());
-    allData = await resp.json();
+    const raw = await resp.json();
+    // Support both old format (array) and new format ({last_updated, data})
+    if (Array.isArray(raw)) {
+      allData = raw;
+    } else if (raw && raw.data) {
+      allData = raw.data;
+      if (raw.last_updated) {
+        document.getElementById('lastUpdate').textContent =
+          new Date(raw.last_updated).toLocaleString('zh-CN');
+      }
+    } else {
+      allData = [];
+    }
     allData.sort((a, b) => a.month.localeCompare(b.month));
   } catch (e) {
     document.getElementById('kpiGrid').innerHTML = '<div class="loading">无法加载 data.json，请确保文件存在</div>';
@@ -425,7 +437,10 @@ async function loadData() {
   renderTable(allData.slice(-24));
   initDateRange();
 
-  document.getElementById('lastUpdate').textContent = new Date().toLocaleString('zh-CN');
+  // Fallback: if no last_updated in data, show dash
+  if (!document.getElementById('lastUpdate').textContent || document.getElementById('lastUpdate').textContent === '-') {
+    document.getElementById('lastUpdate').textContent = '-';
+  }
 }
 
 // ── KPI Cards ──

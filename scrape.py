@@ -230,19 +230,28 @@ def _extract_nums(row):
 
 
 def load_existing_data():
-    """Load existing data from data.json"""
+    """Load existing data from data.json (supports both old array and new object format)"""
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            raw = json.load(f)
+        # Support old format (plain array) and new format ({last_updated, data})
+        if isinstance(raw, list):
+            return raw
+        if isinstance(raw, dict) and "data" in raw:
+            return raw["data"]
     return []
 
 
 def save_data(data):
-    """Save data to data.json"""
+    """Save data to data.json with last_updated timestamp"""
     data.sort(key=lambda x: x["month"])
+    output = {
+        "last_updated": datetime.now().isoformat(),
+        "data": data,
+    }
     with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    print(f"已保存 {len(data)} 条记录到 data.json")
+        json.dump(output, f, ensure_ascii=False, indent=2)
+    print(f"已保存 {len(data)} 条记录到 data.json (更新时间: {output['last_updated']})")
 
 
 def scrape_month(month_key, article_path, force=False):
