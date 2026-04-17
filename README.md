@@ -24,7 +24,7 @@ python3 scrape.py --month 2026-02  # 抓取指定月份
 
 ## 自动更新
 
-GitHub Actions 每月 15 日自动运行爬虫，抓取上月数据并提交到仓库。
+GitHub Actions 每月 17~21 日自动运行爬虫，抓取上月数据并提交到仓库。
 
 ## 数据指标
 
