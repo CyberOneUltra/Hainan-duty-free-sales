@@ -70,7 +70,7 @@ jobs:
           fi
           xvfb-run --auto-servernum python3 scrape.py $ARGS
         env:
-          CHROME_PATH: /opt/hostedtoolcache/setup-chrome/chromium/stable/x64/chrome
+          CHROME_PATH: /opt/hostedtoolcache/setup-chrome/chrome/stable/x64/chrome
 
       - name: Commit & Push
         run: |
@@ -83,4 +83,3 @@ jobs:
             git commit -m "data: auto-update $(date +'%Y-%m-%d %H:%M UTC')"
             git push
           fi
-
