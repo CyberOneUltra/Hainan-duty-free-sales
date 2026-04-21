@@ -433,5 +433,22 @@
     "items_cumulative_yoy": 9.95,
     "per_capita": 8423.12,
     "per_capita_cumulative": 8277.43
+  },
+  {
+    "month": "2026-03",
+    "amount": 362150.0,
+    "amount_yoy": 24.94,
+    "amount_cumulative": 1420806.0,
+    "amount_cumulative_yoy": 25.66,
+    "visitors": 53.7362,
+    "visitors_yoy": 21.41,
+    "visitors_cumulative": 181.6329,
+    "visitors_cumulative_yoy": 17.96,
+    "items": 296.5026,
+    "items_yoy": 17.83,
+    "items_cumulative": 1097.7355,
+    "items_cumulative_yoy": 11.97,
+    "per_capita": 6739.4,
+    "per_capita_cumulative": 7822.4
   }
 ]
