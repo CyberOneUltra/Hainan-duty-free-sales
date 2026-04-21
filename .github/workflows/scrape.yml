@@ -1,34 +1,27 @@
 name: Scrape Duty-Free Data
 
 on:
-  # 每月17-21日，UTC 1/2/12/13 点触发（海关数据发布时间不确定，多窗口重试）
   schedule:
-    # 17日
     - cron: '0 1 17 * *'
     - cron: '0 2 17 * *'
     - cron: '0 12 17 * *'
     - cron: '0 13 17 * *'
-    # 18日
     - cron: '0 1 18 * *'
     - cron: '0 2 18 * *'
     - cron: '0 12 18 * *'
     - cron: '0 13 18 * *'
-    # 19日
     - cron: '0 1 19 * *'
     - cron: '0 2 19 * *'
     - cron: '0 12 19 * *'
     - cron: '0 13 19 * *'
-    # 20日
     - cron: '0 1 20 * *'
     - cron: '0 2 20 * *'
     - cron: '0 12 20 * *'
     - cron: '0 13 20 * *'
-    # 21日
     - cron: '0 1 21 * *'
     - cron: '0 2 21 * *'
     - cron: '0 12 21 * *'
     - cron: '0 13 21 * *'
-  # 支持手动触发
   workflow_dispatch:
     inputs:
       month:
@@ -56,21 +49,27 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Install Chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          playwright install chromium
-          playwright install-deps chromium
+          # nodriver 需要的系统库
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2
 
       - name: Run scraper
         run: |
+          ARGS=""
           if [ -n "${{ github.event.inputs.month }}" ]; then
-            python3 scrape.py --month "${{ github.event.inputs.month }}"
+            ARGS="--month ${{ github.event.inputs.month }}"
           elif [ "${{ github.event.inputs.force }}" = "true" ]; then
-            python3 scrape.py --force
-          else
-            python3 scrape.py
+            ARGS="--force"
           fi
+          xvfb-run --auto-servernum python3 scrape.py $ARGS
 
       - name: Commit & Push
         run: |

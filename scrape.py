@@ -3,7 +3,7 @@
 海南离岛免税销售数据爬虫
 从海口海关官网抓取月度免税销售数据，解析xlsx/xls文件，保存到data.json
 
-用 Playwright 渲染 JS 反爬页面，绕过 WAF 挑战。
+使用 nodriver (undetected Chrome) 绕过 WAF 反爬和 TLS 指纹检测。
 
 用法:
     python3 scrape.py              # 抓取所有缺失月份
@@ -15,9 +15,11 @@ import os
 import re
 import json
 import time
+import asyncio
 import argparse
 import subprocess
 from datetime import datetime
+from pathlib import Path
 
 try:
     import openpyxl
@@ -32,16 +34,16 @@ except ImportError:
     exit(1)
 
 try:
-    from playwright.sync_api import sync_playwright
+    import nodriver as uc
 except ImportError:
-    print("需要 playwright: pip install playwright && playwright install chromium")
+    print("需要 nodriver: pip install nodriver")
     exit(1)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 DATA_FILE = os.path.join(BASE_DIR, "data.json")
-LISTING_URL = "http://haikou.customs.gov.cn/haikou_customs/605737/fdzdgknr82/605745/58527f05-{page}.html"
-BASE_URL = "http://haikou.customs.gov.cn"
+LISTING_URL = "https://haikou.customs.gov.cn/haikou_customs/605737/fdzdgknr82/605745/58527f05-{page}.html"
+BASE_URL = "https://haikou.customs.gov.cn"
 
 # Known article paths (month -> article page path)
 KNOWN_ARTICLES = {
@@ -73,58 +75,59 @@ KNOWN_ARTICLES = {
     "2026-02": "/haikou_customs/605737/fdzdgknr82/605745/7074681/index.html",
 }
 
-# ─── Playwright 浏览器管理 ─────────────────────────────────────
+# ─── nodriver 浏览器管理 ───────────────────────────────────────
 
-_pw = None
 _browser = None
 
 
-def get_browser():
-    """获取全局 Playwright 浏览器实例（懒初始化）"""
-    global _pw, _browser
+async def get_browser():
+    """获取全局 nodriver 浏览器实例"""
+    global _browser
     if _browser is None:
-        _pw = sync_playwright().start()
-        _browser = _pw.chromium.launch(headless=True)
+        _browser = await uc.start(
+            headless=True,
+            browser_args=[
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+                "--ignore-certificate-errors",
+                "--disable-gpu",
+            ],
+        )
     return _browser
 
 
-def close_browser():
+async def close_browser():
     """关闭浏览器"""
-    global _pw, _browser
+    global _browser
     if _browser:
-        _browser.close()
+        _browser.stop()
         _browser = None
-    if _pw:
-        _pw.stop()
-        _pw = None
 
 
-def pw_fetch_html(url, wait_ms=8000):
-    """用 Playwright 打开页面，等待 JS 渲染完成，返回 HTML"""
-    browser = get_browser()
-    context = browser.new_context(
-        user_agent=(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0.0.0 Safari/537.36"
-        )
-    )
-    page = context.new_page()
+async def nw_fetch_html(url, wait_sec=10):
+    """用 nodriver 打开页面，等待渲染完成，返回 HTML"""
+    browser = await get_browser()
     try:
-        page.goto(url, wait_until="networkidle", timeout=30000)
-        # 额外等待，确保反爬 JS 执行完毕
-        page.wait_for_timeout(wait_ms)
-        html = page.content()
+        page = await browser.get(url)
+        await asyncio.sleep(wait_sec)
+
+        # 检查是否遇到错误页面
+        html = await page.get_content()
+        if "504" in html and "连接超时" in html:
+            print(f"  ⚠️  服务器返回 504，源站不可达")
+            return ""
+        if "502" in html and "Bad Gateway" in html:
+            print(f"  ⚠️  服务器返回 502")
+            return ""
+
         return html
     except Exception as e:
-        print(f"  Playwright 抓取失败 {url}: {e}")
+        print(f"  nodriver 抓取失败 {url}: {e}")
         return ""
-    finally:
-        context.close()
 
 
-def pw_download(url, output_path):
-    """用 curl 下载文件（Playwright 页面中已拿到真实 URL 后）"""
+def curl_download(url, output_path):
+    """用 curl 下载文件"""
     cmd = ["curl", "-s", "-L", "-o", output_path, "--max-time", "60", url]
     result = subprocess.run(cmd, capture_output=True, timeout=65)
     return result.returncode == 0
@@ -133,13 +136,13 @@ def pw_download(url, output_path):
 # ─── 发现 & 获取 ────────────────────────────────────────────────
 
 
-def discover_articles_from_listing():
-    """用 Playwright 渲染列表页，发现新的文章链接"""
+async def discover_articles_from_listing():
+    """用 nodriver 渲染列表页，发现新的文章链接"""
     articles = {}
     for page_num in range(1, 10):
         url = LISTING_URL.format(page=page_num)
         print(f"  渲染列表页 {page_num}...")
-        html = pw_fetch_html(url, wait_ms=5000)
+        html = await nw_fetch_html(url, wait_sec=8)
         if not html:
             break
 
@@ -147,7 +150,11 @@ def discover_articles_from_listing():
         matches = re.findall(pattern, html)
 
         if not matches:
-            break
+            # 也尝试宽松匹配
+            pattern2 = r'href="([^"]+)"[^>]*>([^<]*(?:离岛免税|免税销售)[^<]*)</a>'
+            matches = re.findall(pattern2, html)
+            if not matches:
+                break
 
         found_new = False
         for href, title in matches:
@@ -163,17 +170,17 @@ def discover_articles_from_listing():
         if not found_new:
             break
 
-        time.sleep(1)
+        await asyncio.sleep(1)
 
     return articles
 
 
-def get_xlsx_url(article_path):
-    """用 Playwright 渲染文章页，获取 xlsx 下载链接"""
+async def get_xlsx_url(article_path):
+    """用 nodriver 渲染文章页，获取 xlsx 下载链接"""
     if article_path.startswith("/"):
         article_path = BASE_URL + article_path
 
-    html = pw_fetch_html(article_path, wait_ms=5000)
+    html = await nw_fetch_html(article_path, wait_sec=8)
     if not html:
         return None
 
@@ -318,7 +325,7 @@ def save_data(data):
 # ─── 抓取逻辑 ──────────────────────────────────────────────────
 
 
-def scrape_month(month_key, article_path, force=False):
+async def scrape_month(month_key, article_path, force=False):
     """抓取单个月份的数据"""
     existing = load_existing_data()
     existing_months = {d["month"] for d in existing}
@@ -328,7 +335,7 @@ def scrape_month(month_key, article_path, force=False):
         return True
 
     print(f"  {month_key}: 正在获取下载链接...")
-    xlsx_url = get_xlsx_url(article_path)
+    xlsx_url = await get_xlsx_url(article_path)
     if not xlsx_url:
         print(f"  {month_key}: 未找到xlsx下载链接")
         return False
@@ -337,7 +344,7 @@ def scrape_month(month_key, article_path, force=False):
     tmp_file = os.path.join(DATA_DIR, f"{month_key}{ext}")
 
     print(f"  {month_key}: 正在下载 {xlsx_url}...")
-    if not pw_download(xlsx_url, tmp_file):
+    if not curl_download(xlsx_url, tmp_file):
         print(f"  {month_key}: 下载失败")
         return False
 
@@ -361,7 +368,7 @@ def scrape_month(month_key, article_path, force=False):
     return True
 
 
-def scrape_all(force=False):
+async def scrape_all(force=False):
     """抓取所有已知月份"""
     os.makedirs(DATA_DIR, exist_ok=True)
 
@@ -369,7 +376,7 @@ def scrape_all(force=False):
 
     # 尝试从列表页发现新文章
     print("正在从海关官网发现新数据...")
-    discovered = discover_articles_from_listing()
+    discovered = await discover_articles_from_listing()
     new_count = sum(1 for k in discovered if k not in KNOWN_ARTICLES)
     articles.update(discovered)
 
@@ -379,13 +386,43 @@ def scrape_all(force=False):
     success = 0
     fail = 0
     for month_key in sorted(articles.keys()):
-        if scrape_month(month_key, articles[month_key], force=force):
+        if await scrape_month(month_key, articles[month_key], force=force):
             success += 1
         else:
             fail += 1
-        time.sleep(0.5)
+        await asyncio.sleep(0.5)
 
     print(f"\n完成: 成功 {success}, 失败 {fail}")
+
+
+async def async_main(args):
+    """异步主函数"""
+    try:
+        if args.discover:
+            articles = await discover_articles_from_listing()
+            for k, v in sorted(articles.items()):
+                print(f"  {k}: {v}")
+            return
+
+        if args.month:
+            os.makedirs(DATA_DIR, exist_ok=True)
+            if args.month in KNOWN_ARTICLES:
+                await scrape_month(
+                    args.month, KNOWN_ARTICLES[args.month], force=True
+                )
+            else:
+                # 尝试动态发现该月份
+                print(f"未知月份 {args.month}，尝试从海关官网查找...")
+                discovered = await discover_articles_from_listing()
+                if args.month in discovered:
+                    await scrape_month(args.month, discovered[args.month], force=True)
+                else:
+                    print(f"未找到 {args.month} 的数据")
+                    print("已知月份:", ", ".join(sorted(KNOWN_ARTICLES.keys())))
+        else:
+            await scrape_all(force=args.force)
+    finally:
+        await close_browser()
 
 
 def main():
@@ -396,31 +433,7 @@ def main():
         "--discover", action="store_true", help="只发现新文章链接，不下载"
     )
     args = parser.parse_args()
-
-    try:
-        if args.discover:
-            articles = discover_articles_from_listing()
-            for k, v in sorted(articles.items()):
-                print(f"  {k}: {v}")
-            return
-
-        if args.month:
-            os.makedirs(DATA_DIR, exist_ok=True)
-            if args.month in KNOWN_ARTICLES:
-                scrape_month(args.month, KNOWN_ARTICLES[args.month], force=True)
-            else:
-                # 尝试动态发现该月份
-                print(f"未知月份 {args.month}，尝试从海关官网查找...")
-                discovered = discover_articles_from_listing()
-                if args.month in discovered:
-                    scrape_month(args.month, discovered[args.month], force=True)
-                else:
-                    print(f"未找到 {args.month} 的数据")
-                    print("已知月份:", ", ".join(sorted(KNOWN_ARTICLES.keys())))
-        else:
-            scrape_all(force=args.force)
-    finally:
-        close_browser()
+    asyncio.run(async_main(args))
 
 
 if __name__ == "__main__":
