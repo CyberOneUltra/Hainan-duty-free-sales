@@ -98,6 +98,7 @@ async def get_browser():
         )
         if chrome_path:
             kwargs["browser_executable_path"] = chrome_path
+        print(f"  启动浏览器: {chrome_path or '自动检测'}")
         _browser = await uc.start(**kwargs)
     return _browser
 
