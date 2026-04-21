@@ -47,36 +47,50 @@ BASE_URL = "https://haikou.customs.gov.cn"
 # HTTP 备用（某些 WAF 对 https 限制更严）
 BASE_URL_HTTP = "http://haikou.customs.gov.cn"
 
-# Known article paths (month -> article page path)
+# 已知月份数据 (month -> {"article": path, "xlsx": url or None})
+# xlsx: 直接下载链接（GitHub Actions IP 被 WAF 拦截时的 fallback，xlsx 文件不受限）
+# article: 文章页路径（本机浏览器可用时获取 xlsx 链接）
 KNOWN_ARTICLES = {
-    "2024-01": "/haikou_customs/605737/fdzdgknr82/605745/5684450/index.html",
-    "2024-02": "/haikou_customs/605737/fdzdgknr82/605745/5757645/index.html",
-    "2024-03": "/haikou_customs/605737/fdzdgknr82/605745/5825176/index.html",
-    "2024-04": "/haikou_customs/605737/fdzdgknr82/605745/5884831/index.html",
-    "2024-05": "/haikou_customs/605737/fdzdgknr82/605745/5941485/index.html",
-    "2024-06": "/haikou_customs/605737/fdzdgknr82/605745/5992300/index.html",
-    "2024-07": "/haikou_customs/605737/fdzdgknr82/605745/6050921/index.html",
-    "2024-08": "/haikou_customs/605737/fdzdgknr82/605745/6108463/index.html",
-    "2024-09": "/haikou_customs/605737/fdzdgknr82/605745/6159070/index.html",
-    "2024-10": "/haikou_customs/605737/fdzdgknr82/605745/6211777/index.html",
-    "2024-11": "/haikou_customs/605737/fdzdgknr82/605745/6272443/index.html",
-    "2024-12": "/haikou_customs/605737/fdzdgknr82/605745/6326412/index.html",
-    "2025-01": "/haikou_customs/605737/fdzdgknr82/605745/6369960/index.html",
-    "2025-02": "/haikou_customs/605737/fdzdgknr82/605745/6422507/index.html",
-    "2025-03": "/haikou_customs/605737/fdzdgknr82/605745/6471759/index.html",
-    "2025-04": "/haikou_customs/605737/fdzdgknr82/605745/6524076/index.html",
-    "2025-05": "/haikou_customs/605737/fdzdgknr82/605745/6584794/index.html",
-    "2025-06": "/haikou_customs/605737/fdzdgknr82/605745/6630041/index.html",
-    "2025-07": "/haikou_customs/605737/fdzdgknr82/605745/6681393/index.html",
-    "2025-08": "/haikou_customs/605737/fdzdgknr82/605745/6741898/index.html",
-    "2025-09": "/haikou_customs/605737/fdzdgknr82/605745/6782549/index.html",
-    "2025-10": "/haikou_customs/605737/fdzdgknr82/605745/6830442/index.html",
-    "2025-11": "/haikou_customs/605737/fdzdgknr82/605745/6896365/index.html",
-    "2025-12": "/haikou_customs/605737/fdzdgknr82/605745/6952249/index.html",
-    "2026-01": "/haikou_customs/605737/fdzdgknr82/605745/7037278/index.html",
-    "2026-02": "/haikou_customs/605737/fdzdgknr82/605745/7074681/index.html",
-    "2026-03": "/haikou_customs/605737/fdzdgknr82/605745/7117655/index.html",
+    "2024-01": {"article": "/haikou_customs/605737/fdzdgknr82/605745/5684450/index.html"},
+    "2024-02": {"article": "/haikou_customs/605737/fdzdgknr82/605745/5757645/index.html"},
+    "2024-03": {"article": "/haikou_customs/605737/fdzdgknr82/605745/5825176/index.html"},
+    "2024-04": {"article": "/haikou_customs/605737/fdzdgknr82/605745/5884831/index.html"},
+    "2024-05": {"article": "/haikou_customs/605737/fdzdgknr82/605745/5941485/index.html"},
+    "2024-06": {"article": "/haikou_customs/605737/fdzdgknr82/605745/5992300/index.html"},
+    "2024-07": {"article": "/haikou_customs/605737/fdzdgknr82/605745/6050921/index.html"},
+    "2024-08": {"article": "/haikou_customs/605737/fdzdgknr82/605745/6108463/index.html"},
+    "2024-09": {"article": "/haikou_customs/605737/fdzdgknr82/605745/6159070/index.html"},
+    "2024-10": {"article": "/haikou_customs/605737/fdzdgknr82/605745/6211777/index.html"},
+    "2024-11": {"article": "/haikou_customs/605737/fdzdgknr82/605745/6272443/index.html"},
+    "2024-12": {"article": "/haikou_customs/605737/fdzdgknr82/605745/6326412/index.html"},
+    "2025-01": {"article": "/haikou_customs/605737/fdzdgknr82/605745/6369960/index.html"},
+    "2025-02": {"article": "/haikou_customs/605737/fdzdgknr82/605745/6422507/index.html"},
+    "2025-03": {"article": "/haikou_customs/605737/fdzdgknr82/605745/6471759/index.html"},
+    "2025-04": {"article": "/haikou_customs/605737/fdzdgknr82/605745/6524076/index.html"},
+    "2025-05": {"article": "/haikou_customs/605737/fdzdgknr82/605745/6584794/index.html"},
+    "2025-06": {"article": "/haikou_customs/605737/fdzdgknr82/605745/6630041/index.html"},
+    "2025-07": {"article": "/haikou_customs/605737/fdzdgknr82/605745/6681393/index.html"},
+    "2025-08": {"article": "/haikou_customs/605737/fdzdgknr82/605745/6741898/index.html"},
+    "2025-09": {"article": "/haikou_customs/605737/fdzdgknr82/605745/6782549/index.html"},
+    "2025-10": {"article": "/haikou_customs/605737/fdzdgknr82/605745/6830442/index.html"},
+    "2025-11": {"article": "/haikou_customs/605737/fdzdgknr82/605745/6896365/index.html"},
+    "2025-12": {"article": "/haikou_customs/605737/fdzdgknr82/605745/6952249/index.html"},
+    "2026-01": {"article": "/haikou_customs/605737/fdzdgknr82/605745/7037278/index.html"},
+    "2026-02": {"article": "/haikou_customs/605737/fdzdgknr82/605745/7074681/index.html"},
+    "2026-03": {
+        "article": "/haikou_customs/605737/fdzdgknr82/605745/7117655/index.html",
+        "xlsx": "http://haikou.customs.gov.cn/haikou_customs/605737/fdzdgknr82/605745/7117655/2026042016044569957.xlsx",
+    },
 }
+
+# 兼容旧格式（纯字符串值 -> dict）
+def _normalize_articles():
+    """兼容旧版 KNOWN_ARTICLES（字符串值）和新版（dict 值）"""
+    for k, v in list(KNOWN_ARTICLES.items()):
+        if isinstance(v, str):
+            KNOWN_ARTICLES[k] = {"article": v}
+
+_normalize_articles()
 
 # ─── nodriver 浏览器管理 ───────────────────────────────────────
 
@@ -472,8 +486,13 @@ def save_data(data):
 # ─── 抓取逻辑 ──────────────────────────────────────────────────
 
 
-async def scrape_month(month_key, article_path, force=False):
-    """抓取单个月份的数据"""
+async def scrape_month(month_key, article_info, force=False):
+    """抓取单个月份的数据
+
+    article_info 可以是:
+      - dict: {"article": "/path/...", "xlsx": "http://...xlsx"}
+      - str:  "/path/..."  (兼容旧格式)
+    """
     existing = load_existing_data()
     existing_months = {d["month"] for d in existing}
 
@@ -481,21 +500,41 @@ async def scrape_month(month_key, article_path, force=False):
         print(f"  {month_key}: 已存在，跳过 (使用 --force 强制更新)")
         return True
 
-    print(f"  {month_key}: 正在获取下载链接...")
-    xlsx_url = await get_xlsx_url(article_path)
+    # 兼容旧格式
+    if isinstance(article_info, str):
+        article_info = {"article": article_info}
+
+    article_path = article_info.get("article", "")
+    direct_xlsx = article_info.get("xlsx")
+
+    # ── 获取 xlsx 下载链接 ──
+    xlsx_url = None
+
+    # 优先级 1: 直接 xlsx URL（绕过 WAF，GitHub Actions 可用）
+    if direct_xlsx:
+        print(f"  {month_key}: 使用已知 xlsx 直链")
+        xlsx_url = direct_xlsx
+
+    # 优先级 2: 从文章页获取 xlsx 链接（需要浏览器访问）
+    if not xlsx_url and article_path:
+        print(f"  {month_key}: 正在从文章页获取下载链接...")
+        xlsx_url = await get_xlsx_url(article_path)
+
     if not xlsx_url:
         print(f"  {month_key}: 未找到xlsx下载链接")
         return False
 
+    # ── 下载 ──
     ext = ".xlsx" if xlsx_url.endswith(".xlsx") else ".xls"
     tmp_file = os.path.join(DATA_DIR, f"{month_key}{ext}")
 
-    referer = BASE_URL_HTTP + article_path if article_path.startswith("/") else article_path
-    print(f"  {month_key}: 正在下载 {xlsx_url}...")
+    referer = (BASE_URL_HTTP + article_path if article_path.startswith("/") else article_path) if article_path else None
+    print(f"  {month_key}: 正在下载...")
     if not curl_download(xlsx_url, tmp_file, referer=referer):
         print(f"  {month_key}: 下载失败")
         return False
 
+    # ── 解析 ──
     print(f"  {month_key}: 正在解析...")
     data = parse_xlsx(tmp_file)
     if not data:
@@ -516,15 +555,21 @@ async def scrape_month(month_key, article_path, force=False):
     return True
 
 
+def _normalize_discovered(discovered):
+    """将 discover_articles_from_listing 返回的 {month: path} 转为 {month: {article: path}}"""
+    return {k: {"article": v} if isinstance(v, str) else v for k, v in discovered.items()}
+
+
 async def scrape_all(force=False):
     """抓取所有已知月份"""
     os.makedirs(DATA_DIR, exist_ok=True)
 
-    articles = KNOWN_ARTICLES.copy()
+    articles = {k: v.copy() for k, v in KNOWN_ARTICLES.items()}
 
     # 尝试从列表页发现新文章
     print("正在从海关官网发现新数据...")
     discovered = await discover_articles_from_listing()
+    discovered = _normalize_discovered(discovered)
     new_count = sum(1 for k in discovered if k not in KNOWN_ARTICLES)
     articles.update(discovered)
 
@@ -562,6 +607,7 @@ async def async_main(args):
                 # 尝试动态发现该月份
                 print(f"未知月份 {args.month}，尝试从海关官网查找...")
                 discovered = await discover_articles_from_listing()
+                discovered = _normalize_discovered(discovered)
                 if args.month in discovered:
                     await scrape_month(args.month, discovered[args.month], force=True)
                 else:
