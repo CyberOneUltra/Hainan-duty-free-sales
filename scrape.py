@@ -144,8 +144,12 @@ async def close_browser():
     """关闭浏览器"""
     global _browser
     if _browser:
-        _browser.stop()
-        _browser = None
+        try:
+            _browser.stop()
+        except (RuntimeError, Exception) as e:
+            print(f"  关闭浏览器时忽略: {e}")
+        finally:
+            _browser = None
 
 
 async def nw_fetch_html(url, wait_sec=10):
@@ -616,7 +620,13 @@ async def async_main(args):
         else:
             await scrape_all(force=args.force)
     finally:
-        await close_browser()
+        try:
+            await close_browser()
+        except RuntimeError as e:
+            if "Event loop is closed" in str(e):
+                print(f"  忽略事件循环关闭错误: {e}")
+            else:
+                raise
 
 
 def main():
