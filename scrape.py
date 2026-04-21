@@ -128,7 +128,7 @@ async def nw_fetch_html(url, wait_sec=10):
 
 def curl_download(url, output_path):
     """用 curl 下载文件"""
-    cmd = ["curl", "-s", "-L", "-o", output_path, "--max-time", "60", url]
+    cmd = ["curl", "-s", "-k", "-L", "-o", output_path, "--max-time", "60", url]
     result = subprocess.run(cmd, capture_output=True, timeout=65)
     return result.returncode == 0
 
@@ -139,24 +139,38 @@ def curl_download(url, output_path):
 async def discover_articles_from_listing():
     """用 nodriver 渲染列表页，发现新的文章链接"""
     articles = {}
+    no_match_streak = 0
     for page_num in range(1, 10):
         url = LISTING_URL.format(page=page_num)
         print(f"  渲染列表页 {page_num}...")
-        html = await nw_fetch_html(url, wait_sec=8)
+        html = await nw_fetch_html(url, wait_sec=12)
         if not html:
+            print(f"  列表页 {page_num}: 获取失败，停止")
             break
+
+        # Debug: 输出页面长度和标题片段
+        title_m = re.search(r'<title>([^<]*)</title>', html)
+        page_title = title_m.group(1) if title_m else "(无标题)"
+        print(f"  列表页 {page_num}: HTML长度={len(html)}, 标题={page_title[:60]}")
 
         pattern = r'<a[^>]*href="([^"]+)"[^>]*>([^<]*离岛免税[^<]*)</a>'
         matches = re.findall(pattern, html)
 
         if not matches:
             # 也尝试宽松匹配
-            pattern2 = r'href="([^"]+)"[^>]*>([^<]*(?:离岛免税|免税销售)[^<]*)</a>'
+            pattern2 = r'href="([^"]+)"[^>]*>([^<]*(?:离岛免税|免税销售|免税购物)[^<]*)</a>'
             matches = re.findall(pattern2, html)
-            if not matches:
-                break
 
-        found_new = False
+        if not matches:
+            print(f"  列表页 {page_num}: 未找到免税相关链接")
+            no_match_streak += 1
+            if no_match_streak >= 2:
+                break
+            continue
+
+        no_match_streak = 0
+        print(f"  列表页 {page_num}: 找到 {len(matches)} 个相关链接")
+        page_has_articles = False
         for href, title in matches:
             m = re.search(r"(\d{4})年(\d{1,2})月", title)
             if m:
@@ -165,9 +179,13 @@ async def discover_articles_from_listing():
                 key = f"{year}-{month}"
                 if key not in articles:
                     articles[key] = href
-                    found_new = True
+                    print(f"    新增: {key} -> {href}")
+                page_has_articles = True
 
-        if not found_new:
+        # 只有当页面上完全没有匹配的链接时才停止翻页
+        # (而不是"没有新增"就停止)
+        if not page_has_articles:
+            print(f"  列表页 {page_num}: 无日期匹配的链接，停止翻页")
             break
 
         await asyncio.sleep(1)
