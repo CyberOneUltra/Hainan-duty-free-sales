@@ -44,6 +44,8 @@ DATA_DIR = os.path.join(BASE_DIR, "data")
 DATA_FILE = os.path.join(BASE_DIR, "data.json")
 LISTING_URL = "https://haikou.customs.gov.cn/haikou_customs/605737/fdzdgknr82/605745/58527f05-{page}.html"
 BASE_URL = "https://haikou.customs.gov.cn"
+# HTTP 备用（某些 WAF 对 https 限制更严）
+BASE_URL_HTTP = "http://haikou.customs.gov.cn"
 
 # Known article paths (month -> article page path)
 KNOWN_ARTICLES = {
@@ -164,7 +166,8 @@ def curl_download(url, output_path):
 def curl_fetch_html(url, referer=None):
     """用 curl + 浏览器 UA 抓取 HTML（绕过基础 WAF，nodriver 的 fallback）"""
     cmd = [
-        "curl", "-s", "-k", "-L", "--max-time", "30",
+        "curl", "-s", "-k", "-L", "--max-time", "60",
+        "-w", "\n__CURL_HTTP_CODE__%{http_code}",
         "-H", "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
               "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
         "-H", "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -174,15 +177,54 @@ def curl_fetch_html(url, referer=None):
         cmd += ["-H", f"Referer: {referer}"]
     cmd.append(url)
     try:
-        result = subprocess.run(cmd, capture_output=True, timeout=35)
-        if result.returncode == 0 and result.stdout:
-            html = result.stdout.decode("utf-8", errors="ignore")
-            if "504" in html and "连接超时" in html:
-                return ""
-            return html
+        result = subprocess.run(cmd, capture_output=True, timeout=65)
+        raw = result.stdout.decode("utf-8", errors="ignore") if result.stdout else ""
+
+        # 提取 HTTP 状态码
+        http_code = 0
+        m = re.search(r"__CURL_HTTP_CODE__(\d+)", raw)
+        if m:
+            http_code = int(m.group(1))
+            raw = raw[:m.start()]
+
+        if result.returncode != 0:
+            print(f"    curl 退出码 {result.returncode}")
+            return ""
+        if http_code and http_code >= 400:
+            print(f"    curl HTTP {http_code}")
+            return ""
+        if "504" in raw and "连接超时" in raw:
+            print(f"    curl 拿到 504 页面")
+            return ""
+        if len(raw) < 500:
+            print(f"    curl 响应过短 ({len(raw)} bytes), 可能被拦截")
+            return ""
+
+        return raw
+    except subprocess.TimeoutExpired:
+        print(f"    curl 超时 (60s)")
+        return ""
+    except Exception as e:
+        print(f"    curl 异常: {e}")
+        return ""
+
+
+def curl_download(url, output_path, referer=None):
+    """用 curl 下载文件（带浏览器 UA 绕 WAF）"""
+    cmd = [
+        "curl", "-s", "-k", "-L",
+        "-o", output_path, "--max-time", "60",
+        "-H", "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+              "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+    ]
+    if referer:
+        cmd += ["-H", f"Referer: {referer}"]
+    cmd.append(url)
+    try:
+        result = subprocess.run(cmd, capture_output=True, timeout=65)
+        return result.returncode == 0
     except Exception:
-        pass
-    return ""
+        return False
 
 
 def _extract_xlsx_from_html(html):
@@ -204,16 +246,22 @@ async def discover_articles_from_listing():
     articles = {}
     no_match_streak = 0
     for page_num in range(1, 10):
-        url = LISTING_URL.format(page=page_num)
+        # HTTP 优先，HTTPS 兜底
+        urls = [
+            f"http://haikou.customs.gov.cn/haikou_customs/605737/fdzdgknr82/605745/58527f05-{page_num}.html",
+            LISTING_URL.format(page=page_num),
+        ]
         html = ""
-
-        # 优先用 curl（GitHub Actions 上更可靠）
-        print(f"  curl 获取列表页 {page_num}...")
-        html = curl_fetch_html(url)
+        for url in urls:
+            proto = "http" if "http://" in url and "https://" not in url else "https"
+            print(f"  curl 获取列表页 {page_num} ({proto})...")
+            html = curl_fetch_html(url)
+            if html:
+                break
 
         if not html:
             print(f"  curl 失败，尝试 nodriver 渲染列表页 {page_num}...")
-            html = await nw_fetch_html(url, wait_sec=12)
+            html = await nw_fetch_html(LISTING_URL.format(page=page_num), wait_sec=12)
 
         if not html:
             print(f"  列表页 {page_num}: 获取失败，停止")
@@ -263,23 +311,37 @@ async def discover_articles_from_listing():
 async def get_xlsx_url(article_path):
     """获取文章页中的 xlsx 下载链接（curl 优先，nodriver 兜底）"""
     if article_path.startswith("/"):
-        full_url = BASE_URL + article_path
+        urls_to_try = [
+            BASE_URL_HTTP + article_path,   # HTTP 优先（WAF 对 https 限制更严）
+            BASE_URL + article_path,         # HTTPS 兜底
+        ]
     else:
-        full_url = article_path
+        urls_to_try = [article_path]
 
-    referer = LISTING_URL.format(page=1)
+    referer = BASE_URL_HTTP + "/haikou_customs/605737/fdzdgknr82/605745/58527f05-1.html"
 
-    # 优先用 curl
-    html = curl_fetch_html(full_url, referer=referer)
-    if html:
-        url = _extract_xlsx_from_html(html)
-        if url:
-            return url
+    for full_url in urls_to_try:
+        protocol = "https" if "https" in full_url else "http"
+        print(f"    尝试 {protocol}...")
 
-    # curl 失败或没找到链接，用 nodriver 兜底
-    html = await nw_fetch_html(full_url, wait_sec=8)
-    if html:
-        return _extract_xlsx_from_html(html)
+        # curl 方式
+        html = curl_fetch_html(full_url, referer=referer)
+        if html:
+            url = _extract_xlsx_from_html(html)
+            if url:
+                # 统一用 http 协议下载（实测 http 更容易通过 WAF）
+                url = url.replace("https://haikou", "http://haikou")
+                print(f"    ✅ {protocol} 成功找到 xlsx 链接")
+                return url
+
+    # curl 全部失败，用 nodriver 兜底
+    for full_url in urls_to_try:
+        html = await nw_fetch_html(full_url, wait_sec=10)
+        if html:
+            url = _extract_xlsx_from_html(html)
+            if url:
+                url = url.replace("https://haikou", "http://haikou")
+                return url
 
     return None
 
@@ -428,8 +490,9 @@ async def scrape_month(month_key, article_path, force=False):
     ext = ".xlsx" if xlsx_url.endswith(".xlsx") else ".xls"
     tmp_file = os.path.join(DATA_DIR, f"{month_key}{ext}")
 
+    referer = BASE_URL_HTTP + article_path if article_path.startswith("/") else article_path
     print(f"  {month_key}: 正在下载 {xlsx_url}...")
-    if not curl_download(xlsx_url, tmp_file):
+    if not curl_download(xlsx_url, tmp_file, referer=referer):
         print(f"  {month_key}: 下载失败")
         return False
 
