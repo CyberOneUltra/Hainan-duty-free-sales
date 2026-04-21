@@ -620,13 +620,7 @@ async def async_main(args):
         else:
             await scrape_all(force=args.force)
     finally:
-        try:
-            await close_browser()
-        except RuntimeError as e:
-            if "Event loop is closed" in str(e):
-                print(f"  忽略事件循环关闭错误: {e}")
-            else:
-                raise
+        await close_browser()
 
 
 def main():
@@ -637,8 +631,24 @@ def main():
         "--discover", action="store_true", help="只发现新文章链接，不下载"
     )
     args = parser.parse_args()
-    asyncio.run(async_main(args))
+
+    # 手动管理事件循环，避免 asyncio.run() 提前关闭循环导致
+    # nodriver 子进程 transport 的 __del__ 回调报 "Event loop is closed"
+    import gc
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(async_main(args))
+    finally:
+        # 强制 GC 回收 nodriver 的子进程 transport，此时循环仍可用
+        gc.collect()
+        try:
+            loop.run_until_complete(asyncio.sleep(0.1))
+        except RuntimeError:
+            pass
+        loop.close()
 
 
 if __name__ == "__main__":
     main()
+
