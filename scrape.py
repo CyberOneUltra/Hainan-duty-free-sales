@@ -161,22 +161,64 @@ def curl_download(url, output_path):
     return result.returncode == 0
 
 
+def curl_fetch_html(url, referer=None):
+    """用 curl + 浏览器 UA 抓取 HTML（绕过基础 WAF，nodriver 的 fallback）"""
+    cmd = [
+        "curl", "-s", "-k", "-L", "--max-time", "30",
+        "-H", "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+              "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+        "-H", "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "-H", "Accept-Language: zh-CN,zh;q=0.9,en;q=0.8",
+    ]
+    if referer:
+        cmd += ["-H", f"Referer: {referer}"]
+    cmd.append(url)
+    try:
+        result = subprocess.run(cmd, capture_output=True, timeout=35)
+        if result.returncode == 0 and result.stdout:
+            html = result.stdout.decode("utf-8", errors="ignore")
+            if "504" in html and "连接超时" in html:
+                return ""
+            return html
+    except Exception:
+        pass
+    return ""
+
+
+def _extract_xlsx_from_html(html):
+    """从 HTML 中提取 xlsx/xls 下载链接"""
+    m = re.search(r'href="([^"]+\.xls[x]?)"', html)
+    if m:
+        url = m.group(1)
+        if not url.startswith("http"):
+            url = BASE_URL + url
+        return url
+    return None
+
+
 # ─── 发现 & 获取 ────────────────────────────────────────────────
 
 
 async def discover_articles_from_listing():
-    """用 nodriver 渲染列表页，发现新的文章链接"""
+    """从列表页发现新的文章链接（curl 优先，nodriver 兜底）"""
     articles = {}
     no_match_streak = 0
     for page_num in range(1, 10):
         url = LISTING_URL.format(page=page_num)
-        print(f"  渲染列表页 {page_num}...")
-        html = await nw_fetch_html(url, wait_sec=12)
+        html = ""
+
+        # 优先用 curl（GitHub Actions 上更可靠）
+        print(f"  curl 获取列表页 {page_num}...")
+        html = curl_fetch_html(url)
+
+        if not html:
+            print(f"  curl 失败，尝试 nodriver 渲染列表页 {page_num}...")
+            html = await nw_fetch_html(url, wait_sec=12)
+
         if not html:
             print(f"  列表页 {page_num}: 获取失败，停止")
             break
 
-        # Debug: 输出页面长度和标题片段
         title_m = re.search(r'<title>([^<]*)</title>', html)
         page_title = title_m.group(1) if title_m else "(无标题)"
         print(f"  列表页 {page_num}: HTML长度={len(html)}, 标题={page_title[:60]}")
@@ -185,7 +227,6 @@ async def discover_articles_from_listing():
         matches = re.findall(pattern, html)
 
         if not matches:
-            # 也尝试宽松匹配
             pattern2 = r'href="([^"]+)"[^>]*>([^<]*(?:离岛免税|免税销售|免税购物)[^<]*)</a>'
             matches = re.findall(pattern2, html)
 
@@ -210,8 +251,6 @@ async def discover_articles_from_listing():
                     print(f"    新增: {key} -> {href}")
                 page_has_articles = True
 
-        # 只有当页面上完全没有匹配的链接时才停止翻页
-        # (而不是"没有新增"就停止)
         if not page_has_articles:
             print(f"  列表页 {page_num}: 无日期匹配的链接，停止翻页")
             break
@@ -222,21 +261,25 @@ async def discover_articles_from_listing():
 
 
 async def get_xlsx_url(article_path):
-    """用 nodriver 渲染文章页，获取 xlsx 下载链接"""
+    """获取文章页中的 xlsx 下载链接（curl 优先，nodriver 兜底）"""
     if article_path.startswith("/"):
-        article_path = BASE_URL + article_path
+        full_url = BASE_URL + article_path
+    else:
+        full_url = article_path
 
-    html = await nw_fetch_html(article_path, wait_sec=8)
-    if not html:
-        return None
+    referer = LISTING_URL.format(page=1)
 
-    # 查找 xlsx/xls 下载链接
-    m = re.search(r'href="([^"]+\.xls[x]?)"', html)
-    if m:
-        url = m.group(1)
-        if not url.startswith("http"):
-            url = BASE_URL + url
-        return url
+    # 优先用 curl
+    html = curl_fetch_html(full_url, referer=referer)
+    if html:
+        url = _extract_xlsx_from_html(html)
+        if url:
+            return url
+
+    # curl 失败或没找到链接，用 nodriver 兜底
+    html = await nw_fetch_html(full_url, wait_sec=8)
+    if html:
+        return _extract_xlsx_from_html(html)
 
     return None
 
@@ -357,15 +400,11 @@ def load_existing_data():
 
 
 def save_data(data):
-    """保存数据到 data.json"""
+    """保存数据到 data.json（纯数组格式，保持与 dashboard 兼容）"""
     data.sort(key=lambda x: x["month"])
-    output = {
-        "last_updated": datetime.now().isoformat(),
-        "data": data,
-    }
     with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(output, f, ensure_ascii=False, indent=2)
-    print(f"已保存 {len(data)} 条记录到 data.json (更新时间: {output['last_updated']})")
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    print(f"已保存 {len(data)} 条记录到 data.json")
 
 
 # ─── 抓取逻辑 ──────────────────────────────────────────────────
