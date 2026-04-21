@@ -73,6 +73,7 @@ KNOWN_ARTICLES = {
     "2025-12": "/haikou_customs/605737/fdzdgknr82/605745/6952249/index.html",
     "2026-01": "/haikou_customs/605737/fdzdgknr82/605745/7037278/index.html",
     "2026-02": "/haikou_customs/605737/fdzdgknr82/605745/7074681/index.html",
+    "2026-03": "/haikou_customs/605737/fdzdgknr82/605745/7117655/index.html",
 }
 
 # ─── nodriver 浏览器管理 ───────────────────────────────────────
