@@ -84,7 +84,9 @@ async def get_browser():
     """获取全局 nodriver 浏览器实例"""
     global _browser
     if _browser is None:
-        _browser = await uc.start(
+        # GitHub Actions: browser-actions/setup-chrome installs here
+        chrome_path = os.environ.get("CHROME_PATH") or _find_chrome()
+        kwargs = dict(
             headless=True,
             sandbox=False,
             browser_args=[
@@ -94,7 +96,30 @@ async def get_browser():
                 "--disable-gpu",
             ],
         )
+        if chrome_path:
+            kwargs["browser_executable_path"] = chrome_path
+        _browser = await uc.start(**kwargs)
     return _browser
+
+
+def _find_chrome():
+    """尝试查找 Chrome 可执行文件"""
+    import shutil
+    # 优先在 PATH 中找
+    for name in ["google-chrome-stable", "google-chrome", "chromium", "chrome"]:
+        found = shutil.which(name)
+        if found:
+            return found
+    # GitHub Actions setup-chrome 默认路径
+    gh_paths = [
+        "/opt/hostedtoolcache/setup-chrome/chromium/stable/x64/chrome",
+        "/usr/bin/google-chrome-stable",
+        "/usr/bin/google-chrome",
+    ]
+    for p in gh_paths:
+        if os.path.exists(p):
+            return p
+    return None
 
 
 async def close_browser():
