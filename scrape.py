@@ -86,6 +86,7 @@ async def get_browser():
     if _browser is None:
         _browser = await uc.start(
             headless=True,
+            sandbox=False,
             browser_args=[
                 "--no-sandbox",
                 "--disable-dev-shm-usage",
