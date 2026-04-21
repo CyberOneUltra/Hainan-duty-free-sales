@@ -15,10 +15,14 @@
 
 ```bash
 pip install -r requirements.txt
-python3 scrape.py            # 抓取所有缺失月份
-python3 scrape.py --force    # 强制重新抓取
+playwright install chromium        # 首次需安装浏览器
+playwright install-deps chromium   # 安装系统依赖（Linux）
+python3 scrape.py                  # 抓取所有缺失月份
+python3 scrape.py --force          # 强制重新抓取
 python3 scrape.py --month 2026-02  # 抓取指定月份
 ```
+
+> 海关网站已启用 WAF 反爬（JS 挑战），现使用 Playwright 无头浏览器渲染页面以绕过。
 
 看板直接用浏览器打开 `dashboard.html` 即可（需同目录下的 `data.json`）。
 
