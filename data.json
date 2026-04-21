@@ -435,7 +435,6 @@
     "per_capita_cumulative": 8277.43
   },
   {
-    "month": "2026-03",
     "amount": 362150.0,
     "amount_yoy": 24.94,
     "amount_cumulative": 1420806.0,
@@ -449,6 +448,7 @@
     "items_cumulative": 1097.7355,
     "items_cumulative_yoy": 11.97,
     "per_capita": 6739.4,
-    "per_capita_cumulative": 7822.4
+    "per_capita_cumulative": 7822.4,
+    "month": "2026-03"
   }
 ]
