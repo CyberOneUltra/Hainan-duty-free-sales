@@ -2,7 +2,6 @@ name: Scrape Duty-Free Data
 
 on:
   schedule:
-    # 每月 17-22 日，每 12 小时运行一次（UTC）
     - cron: '0 0 17 * *'
     - cron: '0 12 17 * *'
     - cron: '0 0 18 * *'
@@ -29,10 +28,19 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -50,7 +58,6 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          # 安装 Chrome 所需的全部系统依赖
           sudo apt-get update -qq
           sudo apt-get install -y -qq \
             xvfb libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
@@ -83,3 +90,15 @@ jobs:
             git commit -m "data: auto-update $(date +'%Y-%m-%d %H:%M UTC')"
             git push
           fi
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: '.'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
