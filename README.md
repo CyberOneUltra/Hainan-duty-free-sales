@@ -2,6 +2,38 @@
 
 自动从[海口海关官网](http://haikou.customs.gov.cn/haikou_customs/605737/fdzdgknr82/605745/58527f05-1.html)抓取月度免税销售数据，提供可视化看板。
 
+## 添加新月份数据
+
+海关网站有 WAF 防护，GitHub Actions 无法访问文章页，但 **xlsx 文件下载不受限制**。
+
+每月海关发布新数据后，按以下步骤操作：
+
+### 1. 获取 xlsx 直链
+
+1. 用浏览器打开海关文章页（如 `http://haikou.customs.gov.cn/.../7117655/index.html`）
+2. 点击页面上的 xlsx 下载链接
+3. 复制下载请求的完整 URL（可通过 F12 → Network 面板拦截）
+
+### 2. 添加到 scrape.py
+
+在 `scrape.py` 的 `KNOWN_ARTICLES` 字典末尾添加一行：
+
+```python
+"2026-04": "http://haikou.customs.gov.cn/haikou_customs/605737/fdzdgknr82/605745/XXXXXXX/YYYYYYYYYYYYYYYYYYY.xlsx",
+```
+
+### 3. 推送
+
+```bash
+git add scrape.py
+git commit -m "data: add 2026-04"
+git push
+```
+
+GitHub Actions 会自动运行，下载 xlsx 并更新 `data.json`。
+
+---
+
 ## 文件说明
 
 | 文件 | 说明 |
@@ -11,24 +43,20 @@
 | `dashboard.html` | 可视化看板（Chart.js），本地打开即可查看 |
 | `data/` | 原始 xlsx/xls 文件存档 |
 
-## 快速开始
+## 本地运行
 
 ```bash
 pip install -r requirements.txt
-playwright install chromium        # 首次需安装浏览器
-playwright install-deps chromium   # 安装系统依赖（Linux）
 python3 scrape.py                  # 抓取所有缺失月份
 python3 scrape.py --force          # 强制重新抓取
 python3 scrape.py --month 2026-02  # 抓取指定月份
 ```
 
-> 海关网站已启用 WAF 反爬（JS 挑战），现使用 Playwright 无头浏览器渲染页面以绕过。
-
-看板直接用浏览器打开 `dashboard.html` 即可（需同目录下的 `data.json`）。
+> 本地运行时，对于没有 xlsx 直链的旧月份，会尝试从文章页获取下载链接。
 
 ## 自动更新
 
-GitHub Actions 每月 17-21 日 UTC 1:00, 2:00, 12:00, 13:00 自动运行爬虫，抓取上月数据并提交到仓库。
+GitHub Actions 每月 17-22 日每 12 小时自动运行，抓取已有 xlsx 直链的月份并提交到仓库。
 
 ## 数据指标
 
