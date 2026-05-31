@@ -30,7 +30,7 @@ git commit -m "data: add 2026-04"
 git push
 ```
 
-GitHub Actions 会自动运行，下载 xlsx 并更新 `data.json`。
+GitHub Actions 会定时自动运行，下载 xlsx 并更新 `data.json`。不过强烈建议添加xlsx直链后手动Actions。
 
 ---
 
