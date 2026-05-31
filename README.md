@@ -16,7 +16,7 @@
 
 ### 2. 添加到 scrape.py
 
-在 `scrape.py` 的 `KNOWN_ARTICLES` 字典末尾添加一行：
+在 `scrape.py` 的 `KNOWN_ARTICLES` 字典末尾添加一行，如：
 
 ```python
 "2026-04": "http://haikou.customs.gov.cn/haikou_customs/605737/fdzdgknr82/605745/XXXXXXX/YYYYYYYYYYYYYYYYYYY.xlsx",
