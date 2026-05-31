@@ -81,7 +81,7 @@ KNOWN_ARTICLES = {
     "2026-02": "http://haikou.customs.gov.cn/haikou_customs/605737/fdzdgknr82/605745/7074681/",
     "2026-03": "http://haikou.customs.gov.cn/haikou_customs/605737/fdzdgknr82/605745/7117655/2026042016044569957.xlsx",
     # ↓ 在这里添加新月份 ↓
-    # "2026-04": "http://haikou.customs.gov.cn/haikou_customs/605737/fdzdgknr82/605745/7158589/2026051911392865260.xlsx",
+    "2026-04": "http://haikou.customs.gov.cn/haikou_customs/605737/fdzdgknr82/605745/7158589/2026051911392865260.xlsx",
 }
 
 
