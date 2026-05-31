@@ -256,6 +256,206 @@ def _extract_xlsx_from_html(html):
     return None
 
 
+# ─── 文章 ID 探测 (兜底策略) ────────────────────────────────────
+
+
+def _get_latest_known_id():
+    """获取已知最新的文章 ID
+
+    优先从 KNOWN_ARTICLES 中提取，如果 data.json 中有 KNOWN_ARTICLES 未覆盖的月份，
+    则尝试从 data.json 的 xlsx URL 中提取。
+    """
+    latest_id = 0
+    latest_month = ""
+
+    for month, info in KNOWN_ARTICLES.items():
+        article_path = info.get("article", "")
+        m = re.search(r"/(\d+)/index\.html", article_path)
+        if m:
+            aid = int(m.group(1))
+            if aid > latest_id:
+                latest_id = aid
+                latest_month = month
+
+    # 也检查 data.json 中的 xlsx URL（可能包含更近月份的 ID）
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            records = data if isinstance(data, list) else data.get("data", [])
+            for rec in records:
+                month = rec.get("month", "")
+                if month > latest_month and month not in KNOWN_ARTICLES:
+                    # 尝试从 data.json 上下文推断（但通常不含 article ID）
+                    pass
+        except Exception:
+            pass
+
+    return latest_id, latest_month
+
+
+def probe_articles_by_id(discovered_from_listing=None):
+    """通过文章 ID 探测发现新月份数据（兜底策略）
+
+    从已知最新 ID 开始，按步长 5000 探测 +30000 到 +100000 范围。
+    对每个候选 ID，用 curl 请求页面，检查是否包含免税相关关键词。
+    """
+    latest_id, latest_month = _get_latest_known_id()
+    if latest_id == 0:
+        print("  无法获取已知最新文章 ID，跳过探测")
+        return {}
+
+    print(f"  最新已知: {latest_month} (ID: {latest_id})")
+
+    # 探测参数
+    step = 5000
+    range_start = 30000
+    range_end = 100000
+
+    # 如果已有列表页发现的结果，可以缩小探测范围
+    # （列表页可能找到了部分新月份，只需探测更远的）
+    known_ids = set()
+    for info in KNOWN_ARTICLES.values():
+        m = re.search(r"/(\d+)/index\.html", info.get("article", ""))
+        if m:
+            known_ids.add(int(m.group(1)))
+
+    candidates = []
+    probe_id = latest_id + range_start
+    while probe_id <= latest_id + range_end:
+        candidates.append(probe_id)
+        probe_id += step
+
+    print(f"  探测范围: {latest_id + range_start} ~ {latest_id + range_end}, "
+          f"步长 {step}, 共 {len(candidates)} 个候选")
+
+    referer = BASE_URL_HTTP + "/haikou_customs/605737/fdzdgknr82/605745/58527f05-1.html"
+    new_articles = {}
+    found_any = False
+    # 探测到已知月份时连续命中次数（用于提前终止）
+    hit_known_streak = 0
+
+    for i, candidate_id in enumerate(candidates):
+        # 检查是否已知这个 ID
+        if candidate_id in known_ids:
+            hit_known_streak += 1
+            if hit_known_streak >= 2:
+                print(f"  连续命中已知 ID，停止探测")
+                break
+            continue
+
+        url_http = f"http://haikou.customs.gov.cn/haikou_customs/605737/fdzdgknr82/605745/{candidate_id}/index.html"
+        url_https = f"https://haikou.customs.gov.cn/haikou_customs/605737/fdzdgknr82/605745/{candidate_id}/index.html"
+
+        print(f"  [{i+1}/{len(candidates)}] 探测 ID {candidate_id}...", end="", flush=True)
+
+        # HTTP 优先（WAF 对 https 限制更严）
+        html = curl_fetch_html(url_http, referer=referer)
+        if not html:
+            html = curl_fetch_html(url_https, referer=referer)
+
+        if not html:
+            print(" 无响应")
+            time.sleep(1.5)
+            continue
+
+        # 检查是否是免税销售数据文章
+        if "离岛免税" not in html and "免税销售" not in html and "免税购物" not in html:
+            print(" 非免税文章")
+            hit_known_streak = 0
+            time.sleep(1.5)
+            continue
+
+        # 提取标题
+        title_m = re.search(r"<title>([^<]*)</title>", html)
+        title = title_m.group(1).strip() if title_m else ""
+
+        # 从标题提取年月
+        date_m = re.search(r"(\d{4})年(\d{1,2})月", title)
+        if not date_m:
+            # 尝试从正文提取
+            date_m = re.search(r"(\d{4})年(\d{1,2})月", html)
+
+        if not date_m:
+            print(f" 有免税内容但无法提取日期: {title[:50]}")
+            hit_known_streak = 0
+            time.sleep(1.5)
+            continue
+
+        year = date_m.group(1)
+        month = date_m.group(2).zfill(2)
+        month_key = f"{year}-{month}"
+
+        if month_key in KNOWN_ARTICLES or month_key in new_articles:
+            print(f" 已知月份 {month_key}")
+            hit_known_streak += 1
+            time.sleep(1.5)
+            continue
+
+        article_path = f"/haikou_customs/605737/fdzdgknr82/605745/{candidate_id}/index.html"
+        new_articles[month_key] = {"article": article_path}
+        found_any = True
+        hit_known_streak = 0
+
+        print(f" ✅ 发现新月份: {month_key} (ID: {candidate_id}, 标题: {title[:40]})")
+
+        time.sleep(1.5)
+
+    return new_articles
+
+
+def _update_scrape_py_known_articles(new_entries):
+    """将新发现的文章条目写回 scrape.py 的 KNOWN_ARTICLES 字典"""
+    if not new_entries:
+        return False
+
+    scrape_py_path = os.path.join(BASE_DIR, "scrape.py")
+    if not os.path.exists(scrape_py_path):
+        print("  ⚠️  未找到 scrape.py，跳过自动更新")
+        return False
+
+    with open(scrape_py_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # 找到 KNOWN_ARTICLES 字典的结束位置
+    # 匹配最后一个已知条目的 "}" 后面跟着的 "}"
+    # KNOWN_ARTICLES 字典以 "\n}" 结尾（最后一个条目后面跟着字典的闭合括号）
+    dict_pattern = re.compile(
+        r'(KNOWN_ARTICLES\s*=\s*\{.*?)(\n\})',
+        re.DOTALL
+    )
+    match = dict_pattern.search(content)
+    if not match:
+        print("  ⚠️  无法定位 KNOWN_ARTICLES 字典，跳过自动更新")
+        return False
+
+    dict_start = match.start(1)
+    dict_end_brace = match.start(2)  # 位置在 "\n}" 的开头
+
+    # 构造新条目文本
+    # 找到现有条目的缩进格式
+    existing_lines = content[dict_start:dict_end_brace]
+    indent_m = re.search(r'(\n[ \t]+)"\d{4}-\d{2}":', existing_lines)
+    indent = indent_m.group(1) if indent_m else '\n    '
+
+    new_entries_text = ""
+    for month_key in sorted(new_entries.keys()):
+        info = new_entries[month_key]
+        article_path = info["article"]
+        new_entries_text += f'{indent}"{month_key}": {{\n'
+        new_entries_text += f'{indent}    "article": "{article_path}",\n'
+        new_entries_text += f'{indent}}},'
+
+    # 插入新条目到字典末尾（在闭合括号之前）
+    updated_content = content[:dict_end_brace] + new_entries_text + content[dict_end_brace:]
+
+    with open(scrape_py_path, "w", encoding="utf-8") as f:
+        f.write(updated_content)
+
+    print(f"  ✅ 已将 {len(new_entries)} 个新条目写入 scrape.py 的 KNOWN_ARTICLES")
+    return True
+
+
 # ─── 发现 & 获取 ────────────────────────────────────────────────
 
 
@@ -324,6 +524,36 @@ async def discover_articles_from_listing():
         await asyncio.sleep(1)
 
     return articles
+
+
+async def discover_new_articles():
+    """综合发现策略：列表页 -> ID 探测兜底
+
+    返回新发现的文章 {month: {"article": path}} 字典
+    """
+    print("  策略 1: 从列表页发现...")
+    discovered_raw = await discover_articles_from_listing()
+    discovered = _normalize_discovered(discovered_raw)
+
+    # 统计真正的新发现
+    new_from_listing = {k: v for k, v in discovered.items() if k not in KNOWN_ARTICLES}
+
+    if new_from_listing:
+        print(f"  列表页发现 {len(new_from_listing)} 个新月份")
+    else:
+        print("  列表页未发现新月份")
+
+    # 策略 2: ID 探测兜底（无论列表页是否成功，都做探测以发现列表页遗漏的）
+    print("  策略 2: 文章 ID 探测...")
+    probed = probe_articles_by_id(discovered)
+
+    if probed:
+        print(f"  ID 探测发现 {len(probed)} 个新月份")
+        discovered.update(probed)
+    else:
+        print("  ID 探测未发现新月份")
+
+    return discovered
 
 
 async def get_xlsx_url(article_path):
@@ -570,12 +800,16 @@ async def scrape_all(force=False):
 
     articles = {k: v.copy() for k, v in KNOWN_ARTICLES.items()}
 
-    # 尝试从列表页发现新文章
+    # 尝试从列表页 + ID 探测发现新文章
     print("正在从海关官网发现新数据...")
-    discovered = await discover_articles_from_listing()
-    discovered = _normalize_discovered(discovered)
+    discovered = await discover_new_articles()
     new_count = sum(1 for k in discovered if k not in KNOWN_ARTICLES)
     articles.update(discovered)
+
+    # 如果发现了新文章，自动更新 scrape.py
+    new_entries = {k: v for k, v in discovered.items() if k not in KNOWN_ARTICLES}
+    if new_entries:
+        _update_scrape_py_known_articles(new_entries)
 
     print(f"共发现 {len(articles)} 个月份 (其中 {new_count} 个新增)")
     print()
@@ -596,9 +830,14 @@ async def async_main(args):
     """异步主函数"""
     try:
         if args.discover:
-            articles = await discover_articles_from_listing()
-            for k, v in sorted(articles.items()):
-                print(f"  {k}: {v}")
+            discovered = await discover_new_articles()
+            if discovered:
+                print("\n新发现的文章:")
+                for k, v in sorted(discovered.items()):
+                    if k not in KNOWN_ARTICLES:
+                        print(f"  {k}: {v}")
+            else:
+                print("未发现新文章")
             return
 
         if args.month:
@@ -610,9 +849,11 @@ async def async_main(args):
             else:
                 # 尝试动态发现该月份
                 print(f"未知月份 {args.month}，尝试从海关官网查找...")
-                discovered = await discover_articles_from_listing()
-                discovered = _normalize_discovered(discovered)
+                discovered = await discover_new_articles()
                 if args.month in discovered:
+                    # 自动更新 scrape.py
+                    new_entries = {args.month: discovered[args.month]}
+                    _update_scrape_py_known_articles(new_entries)
                     await scrape_month(args.month, discovered[args.month], force=True)
                 else:
                     print(f"未找到 {args.month} 的数据")
@@ -651,4 +892,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
