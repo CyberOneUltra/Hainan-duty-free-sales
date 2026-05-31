@@ -76,19 +76,10 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data.json data/ scrape.py
+          git add data.json data/
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
-            # 检查哪些文件有变更
-            CHANGED=$(git diff --cached --name-only)
-            echo "Changed files:"
-            echo "$CHANGED"
-            MSG="data: auto-update $(date +'%Y-%m-%d %H:%M UTC')"
-            # 如果 scrape.py 也更新了（KNOWN_ARTICLES 自动扩展），在 commit message 中说明
-            if echo "$CHANGED" | grep -q "scrape.py"; then
-              MSG="data: auto-update + new articles discovered $(date +'%Y-%m-%d %H:%M UTC')"
-            fi
-            git commit -m "$MSG"
+            git commit -m "data: auto-update $(date +'%Y-%m-%d %H:%M UTC')"
             git push
           fi
