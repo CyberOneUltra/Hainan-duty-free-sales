@@ -84,7 +84,7 @@ KNOWN_ARTICLES = {
     "2026-04": "http://haikou.customs.gov.cn/haikou_customs/605737/fdzdgknr82/605745/7158589/2026051911392865260.xlsx",
     "2026-05": "http://haikou.customs.gov.cn/haikou_customs/605737/fdzdgknr82/605745/7217545/2026061810473692199.xlsx",
     "2026-06": "http://haikou.customs.gov.cn/haikou_customs/605737/fdzdgknr82/605745/7264533/2026072016051333931.xlsx",
-    "2026-06": "http://haikou.customs.gov.cn/haikou_customs/fileDir/resource/cms/article/605745/7306438/2026081911284832999.xlsx",
+    "2026-07": "http://haikou.customs.gov.cn/haikou_customs/fileDir/resource/cms/article/605745/7306438/2026081911284832999.xlsx",
 }
 
 
